@@ -1,4 +1,6 @@
 
+SetBatchLines, -1
+
 if(%0%<=0){
 	Msgbox, drop file on it, Please.
 	ExitApp, -5
@@ -18,169 +20,98 @@ if(ErrorLevel)
 	ExitApp, -3
 }
 
-Gui, +ToolWindow hwndgui_id
-Gui, Add, Edit, w340 r20 disabled vediter hwndhEdit1,
-Gui, Add, Edit, w340 r1 vinput disabled hwndhInput1,
+Gui, -Owner +Caption hwndgui_id
+Gui, Add, Edit, w340 r20 readonly vediter hwndhEdit1,
+Gui, Add, Edit, w300 r1 vinput disabled hwndhInput1,
+gui, Add, button, x+5 w35 gsend vbt disabled Default, \n
 gui, show,, brainfuck
 
+ram:=""
+source:=""
 VarSetCapacity(ram, 0xFFFF, 0)
 VarSetCapacity(source, 0xFFFF, 0)
-bf:=new brainfuck(ram,source)
+
+ptr:=0
+sptr:=0
+glooplevel:=0
+; ram:=&ram
+; source:=&source
+funcArr:=Object()
+funcArr[43]:=Func("plus")
+funcArr[45]:=Func("minus")
+funcArr[60]:=Func("prev")
+funcArr[62]:=Func("next")
+funcArr[46]:=Func("print")
+funcArr[44]:=Func("get")
+funcArr[91]:=Func("loopstart")
+funcArr[93]:=Func("loopend")
+
 while(!hFile.AtEOF){
-	bf.translate(hFile.ReadUChar())
+	translate(hFile.ReadUChar())
 }
-bf.pc_reset()
+pc_reset()
 while(1)
 {
-	if(bf.interpret())
+	if(interpret())
 	break
 }
 gui, show,, interpretation complete!!!
 Return
 
+send:
+GuiControl,, input, `n
+Control, EditPaste, `r`n,, ahk_id %hEdit1%
+Return
+
 guiclose:
 ExitApp
 
-global editer
-global hEdit1
-global input
-global hInput1
-class brainfuck
-{
-	; static ptr:=0,sptr:=0,looplevel:=0
-
-	__New(byref ram,byref src)
-	{
-		this.ptr:=0
-		this.sptr:=0
-		this.looplevel:=0
-		this.ram:=&ram
-		this.source:=&src
-	}
-
-	pc_reset()
-	{
-		this.sptr:=0
-		this.ptr:=0
-	}
-
-	interpret()
-	{
-		if(this.sptr>0xFFFF)
-		{
-			MsgBox, % "Program End`nPtr=" this.ptr "`nsPtr=" this.sptr
-			ExitApp, 0
-		}
-		op:=NumGet(this.source, this.sptr,"UChar")
-		; MsgBox, % op
-		dbg:="Before:"
-		dbg.="`nptr=" this.ptr
-		dbg.="`tsptr=" this.sptr
-		Loop, 1
-		{
-			if(!IsLabel("case-" op))
-			{
-				op:=0
-			}
-			; MsgBox, case-%op%
-			goto case-%op%
-			case-0:
-			; ExitApp, 0
-			return true
-			case-43:	;+
-			this.plus()
-			break
-			case-45:	;-
-			this.minus()
-			break
-			case-60:	;<
-			this.prev()
-			break
-			case-62:	;>
-			this.next()
-			break
-			case-46:	;.
-			this.print()
-			break
-			case-44:	;,
-			this.get()
-			break
-			case-91:	;[
-			this.loopstart()
-			break
-			case-93:	;]
-			this.loopend()
-			break
-		}
-		dbg.="`nEXE: " chr(op)
-		dbg.="`nAfter:"
-		dbg.="`nptr=" this.ptr
-		dbg.="`tsptr=" this.sptr
-		; MsgBox, % dbg
-		return false
-	}
-
-	translate(byte)
-	{
-		if(InStr("+-<>.,[]", chr(byte)))
-		{
-			NumPut(byte, this.source, this.sptr++,"UChar")
-			if(this.sptr>0xFFFF)
-			{
-				MsgBox, Program larger than 65535. Exit for safe.
-				ExitApp, -1
-			}
-		}
-	}
-
-	step() {
-		this.sptr+=1
-		if(this.sptr>0xFFFF)
-		{
-			MsgBox, ptr up overflow
-			ExitApp, -2
-		}
-	}
+; global editer
+; global hEdit1
+; global input
+; global hInput1
+; global bt
 
 	plus() {
-		; MsgBox, % A_ThisFunc
-		NumPut((NumGet(this.ram, this.ptr,"UChar")+0x01)&0xFF,this.ram, this.ptr,"UChar")
-		this.sptr++
+		global
+		NumPut((NumGet(ram, ptr,"UChar")+0x01)&0xFF,ram, ptr,"UChar")
+		sptr++
 	}
 	minus() {
-		; MsgBox, % A_ThisFunc
-		NumPut((NumGet(this.ram, this.ptr,"UChar")+0xFF)&0xFF,this.ram, this.ptr,"UChar")
-		this.sptr++
+		global
+		NumPut((NumGet(ram, ptr,"UChar")+0xFF)&0xFF,ram, ptr,"UChar")
+		sptr++
 	}
 	next() {
-		; MsgBox, % A_ThisFunc
-		this.ptr+=1
-		if(this.ptr>0xFFFF)
+		global
+		ptr+=1
+		if(ptr>0xFFFF)
 		{
 			MsgBox, ptr up overflow
 			ExitApp, -2
 		}
-		this.sptr++
+		sptr++
 	}
 	prev() {
-		; MsgBox, % A_ThisFunc
-		this.ptr-=1
-		if(this.ptr<0)
+		global
+		ptr-=1
+		if(ptr<0)
 		{
 			MsgBox, ptr down overflow
 			ExitApp, -3
 		}
-		this.sptr++
+		sptr++
 	}
 	print() {
-		; MsgBox, % A_ThisFunc
-		Control, EditPaste, % chr(NumGet(this.ram, this.ptr,"UChar")),, ahk_id %hEdit1%
-		; MsgBox, % chr(NumGet(this.ram, this.ptr,"UChar"))
-		this.sptr++
+		global
+		Control, EditPaste, % chr(NumGet(ram, ptr,"UChar")),, ahk_id %hEdit1%
+		sptr++
 	}
 	get() {
+		global
 		; MsgBox, % A_ThisFunc
 		GuiControl, -Disabled, input
+		GuiControl, -Disabled, bt
 		sleep 10
 		GuiControl, Focus, input
 		gui, show,, Wait for input ...
@@ -190,34 +121,89 @@ class brainfuck
 			GuiControlGet, txt1,, input
 			if(txt1!="")
 			{
-				NumPut(Asc(txt1)&0xFF,this.ram, this.ptr,"UChar")
+				NumPut(Asc(txt1)&0xFF,ram, ptr,"UChar")
+				Control, EditPaste, % chr(Asc(txt1)&0xFF),, ahk_id %hEdit1%
 				GuiControl,,input,
 				GuiControl,+Disabled,input,
+				GuiControl,+Disabled, bt
 				gui, show,, brainfuck
 				break
 			}
 		}
-		this.sptr++
+		sptr++
 	}
-	loopstart() {
-		local loopLevel
-		; MsgBox, % A_ThisFunc
-		loopLevel:=this.loopLevel
-		this.loopLevel+=1
-		if(NumGet(this.ram, this.ptr,"UChar")=0)
+
+	pc_reset()
+	{
+		global
+		sptr:=0
+		ptr:=0
+	}
+
+	interpret()
+	{
+		global
+		if(sptr>0xFFFF)
 		{
-			while(this.loopLevel!=loopLevel)
+			MsgBox, % "Program End`nPtr=" ptr "`nsPtr=" sptr
+			ExitApp, 0
+		}
+		; MsgBox, % NumGet(source, sptr,"UChar")
+		op:=NumGet(source, sptr,"UChar")
+		; MsgBox, % op " " sptr
+		if(op=0)
+			Return true
+		funcArr[op].()
+		return false
+	}
+
+	translate(byte)
+	{
+		global
+		if(InStr("+-<>.,[]", chr(byte)))
+		{
+			; Control, EditPaste, % chr(byte),, ahk_id %hEdit1%
+			; MsgBox, % byte " " source " " sptr
+			NumPut(byte, source, sptr++,"UChar")
+			; MsgBox, % NumGet(source, sptr-1,"UChar")
+			if(sptr>0xFFFF)
 			{
-				op:=NumGet(this.source, ++this.sptr,"UChar")
+				MsgBox, Program larger than 65535. Exit for safe.
+				ExitApp, -1
+			}
+		}
+	}
+
+	step() {
+		global
+		sptr+=1
+		if(sptr>0xFFFF)
+		{
+			MsgBox, ptr up overflow
+			ExitApp, -2
+		}
+	}
+
+
+	loopstart() {
+		global
+		local loopLevel
+		loopLevel:=gloopLevel
+		gloopLevel+=1
+		if(NumGet(ram, ptr,"UChar")=0)
+		{
+			while(gloopLevel!=loopLevel)
+			{
+				op:=NumGet(source, ++sptr,"UChar")
 				if(op=91)
 				{
-					this.loopLevel+=1
+					gloopLevel+=1
 				}
 				Else if(op=93)
 				{
-					this.loopLevel-=1
+					gloopLevel-=1
 				}
-				if(this.sptr>0xFFFF)
+				if(sptr>0xFFFF)
 				{
 					MsgBox, sptr up overflow
 					ExitApp, -4
@@ -226,32 +212,33 @@ class brainfuck
 		}
 		Else
 		{
-			this.step()
+			step()
 		}
 	}
 	loopend() {
+		global
 		local loopLevel
 		; MsgBox, % A_ThisFunc
-		loopLevel:=this.loopLevel
-		this.loopLevel-=1
-		if(NumGet(this.ram, this.ptr,"UChar")=0)
+		loopLevel:=gloopLevel
+		gloopLevel-=1
+		if(NumGet(ram, ptr,"UChar")=0)
 		{
-			this.step()
+			step()
 		}
 		Else
 		{
-			while(this.loopLevel!=loopLevel)
+			while(gloopLevel!=loopLevel)
 			{
-				op:=NumGet(this.source, --this.sptr,"UChar")
+				op:=NumGet(source, --sptr,"UChar")
 				if(op=91)
 				{
-					this.loopLevel+=1
+					gloopLevel+=1
 				}
 				Else if(op=93)
 				{
-					this.loopLevel-=1
+					gloopLevel-=1
 				}
-				if(this.sptr<0)
+				if(sptr<0)
 				{
 					MsgBox, sptr down overflow
 					ExitApp, -5
@@ -259,6 +246,6 @@ class brainfuck
 			}
 		}
 	}
-}
+
 
 F5::ExitApp
