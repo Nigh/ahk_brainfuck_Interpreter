@@ -9,7 +9,7 @@ IfNotExist, % path
 	Msgbox, drop file on it, Please.
 	ExitApp, -4
 }
-SplitPath, % path, OutFileName, OutDir, OutExtension, OutNameNoExt, OutDrive
+SplitPath, path, OutFileName, OutDir, OutExtension, OutNameNoExt, OutDrive
 
 hFile:=fileOpen(path,"r")
 if(ErrorLevel)
@@ -18,19 +18,33 @@ if(ErrorLevel)
 	ExitApp, -3
 }
 
+Gui, +ToolWindow hwndgui_id
+Gui, Add, Edit, w340 r20 disabled vediter hwndhEdit1,
+Gui, Add, Edit, w340 r1 vinput disabled hwndhInput1,
+gui, show,, brainfuck
+
 VarSetCapacity(ram, 0xFFFF, 0)
 VarSetCapacity(source, 0xFFFF, 0)
 bf:=new brainfuck(ram,source)
 while(!hFile.AtEOF){
 	bf.translate(hFile.ReadUChar())
 }
-bf.pc_ret()
+bf.pc_reset()
 while(1)
-	bf.interpret()
+{
+	if(bf.interpret())
+	break
+}
+gui, show,, interpretation complete!!!
+Return
 
+guiclose:
+ExitApp
 
-
-
+global editer
+global hEdit1
+global input
+global hInput1
 class brainfuck
 {
 	; static ptr:=0,sptr:=0,looplevel:=0
@@ -44,7 +58,7 @@ class brainfuck
 		this.source:=&src
 	}
 
-	pc_ret()
+	pc_reset()
 	{
 		this.sptr:=0
 		this.ptr:=0
@@ -57,8 +71,11 @@ class brainfuck
 			MsgBox, % "Program End`nPtr=" this.ptr "`nsPtr=" this.sptr
 			ExitApp, 0
 		}
-		op:=NumGet(this.source, this.sptr++,"UChar")
+		op:=NumGet(this.source, this.sptr,"UChar")
 		; MsgBox, % op
+		dbg:="Before:"
+		dbg.="`nptr=" this.ptr
+		dbg.="`tsptr=" this.sptr
 		Loop, 1
 		{
 			if(!IsLabel("case-" op))
@@ -68,7 +85,8 @@ class brainfuck
 			; MsgBox, case-%op%
 			goto case-%op%
 			case-0:
-			Return
+			; ExitApp, 0
+			return true
 			case-43:	;+
 			this.plus()
 			break
@@ -94,6 +112,12 @@ class brainfuck
 			this.loopend()
 			break
 		}
+		dbg.="`nEXE: " chr(op)
+		dbg.="`nAfter:"
+		dbg.="`nptr=" this.ptr
+		dbg.="`tsptr=" this.sptr
+		; MsgBox, % dbg
+		return false
 	}
 
 	translate(byte)
@@ -106,6 +130,15 @@ class brainfuck
 				MsgBox, Program larger than 65535. Exit for safe.
 				ExitApp, -1
 			}
+		}
+	}
+
+	step() {
+		this.sptr+=1
+		if(this.sptr>0xFFFF)
+		{
+			MsgBox, ptr up overflow
+			ExitApp, -2
 		}
 	}
 
@@ -127,6 +160,7 @@ class brainfuck
 			MsgBox, ptr up overflow
 			ExitApp, -2
 		}
+		this.sptr++
 	}
 	prev() {
 		; MsgBox, % A_ThisFunc
@@ -136,21 +170,42 @@ class brainfuck
 			MsgBox, ptr down overflow
 			ExitApp, -3
 		}
+		this.sptr++
 	}
 	print() {
 		; MsgBox, % A_ThisFunc
-		MsgBox, % chr(NumGet(this.ram, this.ptr,"UChar"))
+		Control, EditPaste, % chr(NumGet(this.ram, this.ptr,"UChar")),, ahk_id %hEdit1%
+		; MsgBox, % chr(NumGet(this.ram, this.ptr,"UChar"))
+		this.sptr++
 	}
 	get() {
 		; MsgBox, % A_ThisFunc
+		GuiControl, -Disabled, input
+		sleep 10
+		GuiControl, Focus, input
+		gui, show,, Wait for input ...
+		loop
+		{
+			sleep, 50
+			GuiControlGet, txt1,, input
+			if(txt1!="")
+			{
+				NumPut(Asc(txt1)&0xFF,this.ram, this.ptr,"UChar")
+				GuiControl,,input,
+				GuiControl,+Disabled,input,
+				gui, show,, brainfuck
+				break
+			}
+		}
+		this.sptr++
 	}
 	loopstart() {
 		local loopLevel
 		; MsgBox, % A_ThisFunc
+		loopLevel:=this.loopLevel
+		this.loopLevel+=1
 		if(NumGet(this.ram, this.ptr,"UChar")=0)
 		{
-			loopLevel:=this.loopLevel
-			this.loopLevel+=1
 			while(this.loopLevel!=loopLevel)
 			{
 				op:=NumGet(this.source, ++this.sptr,"UChar")
@@ -171,20 +226,20 @@ class brainfuck
 		}
 		Else
 		{
-			this.next()
+			this.step()
 		}
 	}
 	loopend() {
 		local loopLevel
 		; MsgBox, % A_ThisFunc
+		loopLevel:=this.loopLevel
+		this.loopLevel-=1
 		if(NumGet(this.ram, this.ptr,"UChar")=0)
 		{
-			this.next()
+			this.step()
 		}
 		Else
 		{
-			loopLevel:=this.loopLevel
-			this.loopLevel-=1
 			while(this.loopLevel!=loopLevel)
 			{
 				op:=NumGet(this.source, --this.sptr,"UChar")
@@ -204,7 +259,6 @@ class brainfuck
 			}
 		}
 	}
-
 }
 
 F5::ExitApp
