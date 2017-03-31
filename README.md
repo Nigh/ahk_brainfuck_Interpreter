@@ -23,4 +23,8 @@ and a data pointer pointing at the current cell.
   > `]` : If the value at the current cell is zero, move to the next instruction. 
   > Otherwise, move backwards in the instructions to the corresponding [ .  
   
-  
+## USAGE
+
+`interpreter.ahk helloworld.bf`
+
+or directly drop .bf file on the script if support.
