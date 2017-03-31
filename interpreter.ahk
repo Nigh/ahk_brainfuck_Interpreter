@@ -34,8 +34,6 @@ VarSetCapacity(source, 0xFFFF, 0)
 ptr:=0
 sptr:=0
 glooplevel:=0
-; ram:=&ram
-; source:=&source
 funcArr:=Object()
 funcArr[43]:=Func("plus")
 funcArr[45]:=Func("minus")
@@ -66,186 +64,173 @@ Return
 guiclose:
 ExitApp
 
-; global editer
-; global hEdit1
-; global input
-; global hInput1
-; global bt
-
-	plus() {
-		global
-		NumPut((NumGet(ram, ptr,"UChar")+0x01)&0xFF,ram, ptr,"UChar")
-		sptr++
-	}
-	minus() {
-		global
-		NumPut((NumGet(ram, ptr,"UChar")+0xFF)&0xFF,ram, ptr,"UChar")
-		sptr++
-	}
-	next() {
-		global
-		ptr+=1
-		if(ptr>0xFFFF)
-		{
-			MsgBox, ptr up overflow
-			ExitApp, -2
-		}
-		sptr++
-	}
-	prev() {
-		global
-		ptr-=1
-		if(ptr<0)
-		{
-			MsgBox, ptr down overflow
-			ExitApp, -3
-		}
-		sptr++
-	}
-	print() {
-		global
-		Control, EditPaste, % chr(NumGet(ram, ptr,"UChar")),, ahk_id %hEdit1%
-		sptr++
-	}
-	get() {
-		global
-		; MsgBox, % A_ThisFunc
-		GuiControl, -Disabled, input
-		GuiControl, -Disabled, bt
-		sleep 10
-		GuiControl, Focus, input
-		gui, show,, Wait for input ...
-		loop
-		{
-			sleep, 50
-			GuiControlGet, txt1,, input
-			if(txt1!="")
-			{
-				NumPut(Asc(txt1)&0xFF,ram, ptr,"UChar")
-				Control, EditPaste, % chr(Asc(txt1)&0xFF),, ahk_id %hEdit1%
-				GuiControl,,input,
-				GuiControl,+Disabled,input,
-				GuiControl,+Disabled, bt
-				gui, show,, brainfuck
-				break
-			}
-		}
-		sptr++
-	}
-
-	pc_reset()
+plus() {
+	global
+	NumPut((NumGet(ram, ptr,"UChar")+0x01)&0xFF,ram, ptr,"UChar")
+	sptr++
+}
+minus() {
+	global
+	NumPut((NumGet(ram, ptr,"UChar")+0xFF)&0xFF,ram, ptr,"UChar")
+	sptr++
+}
+next() {
+	global
+	ptr+=1
+	if(ptr>0xFFFF)
 	{
-		global
-		sptr:=0
-		ptr:=0
+		MsgBox, ptr up overflow
+		ExitApp, -2
 	}
-
-	interpret()
+	sptr++
+}
+prev() {
+	global
+	ptr-=1
+	if(ptr<0)
 	{
-		global
+		MsgBox, ptr down overflow
+		ExitApp, -3
+	}
+	sptr++
+}
+print() {
+	global
+	Control, EditPaste, % chr(NumGet(ram, ptr,"UChar")),, ahk_id %hEdit1%
+	sptr++
+}
+get() {
+	global
+	GuiControl, -Disabled, input
+	GuiControl, -Disabled, bt
+	sleep 10
+	GuiControl, Focus, input
+	gui, show,, Wait for input ...
+	loop
+	{
+		sleep, 50
+		GuiControlGet, txt1,, input
+		if(txt1!="")
+		{
+			NumPut(Asc(txt1)&0xFF,ram, ptr,"UChar")
+			Control, EditPaste, % chr(Asc(txt1)&0xFF),, ahk_id %hEdit1%
+			GuiControl,,input,
+			GuiControl,+Disabled,input,
+			GuiControl,+Disabled, bt
+			gui, show,, brainfuck
+			break
+		}
+	}
+	sptr++
+}
+
+pc_reset()
+{
+	global
+	sptr:=0
+	ptr:=0
+}
+
+interpret()
+{
+	global
+	if(sptr>0xFFFF)
+	{
+		MsgBox, % "Program End`nPtr=" ptr "`nsPtr=" sptr
+		ExitApp, 0
+	}
+	op:=NumGet(source, sptr,"UChar")
+	if(op=0)
+		Return true
+	funcArr[op].()
+	return false
+}
+
+translate(byte)
+{
+	global
+	if(InStr("+-<>.,[]", chr(byte)))
+	{
+		NumPut(byte, source, sptr++,"UChar")
 		if(sptr>0xFFFF)
 		{
-			MsgBox, % "Program End`nPtr=" ptr "`nsPtr=" sptr
-			ExitApp, 0
+			MsgBox, Program larger than 65535. Exit for safe.
+			ExitApp, -1
 		}
-		; MsgBox, % NumGet(source, sptr,"UChar")
-		op:=NumGet(source, sptr,"UChar")
-		; MsgBox, % op " " sptr
-		if(op=0)
-			Return true
-		funcArr[op].()
-		return false
 	}
+}
 
-	translate(byte)
+step() {
+	global
+	sptr+=1
+	if(sptr>0xFFFF)
 	{
-		global
-		if(InStr("+-<>.,[]", chr(byte)))
+		MsgBox, ptr up overflow
+		ExitApp, -2
+	}
+}
+
+
+loopstart() {
+	global
+	local loopLevel
+	loopLevel:=gloopLevel
+	gloopLevel+=1
+	if(NumGet(ram, ptr,"UChar")=0)
+	{
+		while(gloopLevel!=loopLevel)
 		{
-			; Control, EditPaste, % chr(byte),, ahk_id %hEdit1%
-			; MsgBox, % byte " " source " " sptr
-			NumPut(byte, source, sptr++,"UChar")
-			; MsgBox, % NumGet(source, sptr-1,"UChar")
+			op:=NumGet(source, ++sptr,"UChar")
+			if(op=91)
+			{
+				gloopLevel+=1
+			}
+			Else if(op=93)
+			{
+				gloopLevel-=1
+			}
 			if(sptr>0xFFFF)
 			{
-				MsgBox, Program larger than 65535. Exit for safe.
-				ExitApp, -1
+				MsgBox, sptr up overflow
+				ExitApp, -4
 			}
 		}
 	}
-
-	step() {
-		global
-		sptr+=1
-		if(sptr>0xFFFF)
-		{
-			MsgBox, ptr up overflow
-			ExitApp, -2
-		}
+	Else
+	{
+		step()
 	}
-
-
-	loopstart() {
-		global
-		local loopLevel
-		loopLevel:=gloopLevel
-		gloopLevel+=1
-		if(NumGet(ram, ptr,"UChar")=0)
+}
+loopend() {
+	global
+	local loopLevel
+	loopLevel:=gloopLevel
+	gloopLevel-=1
+	if(NumGet(ram, ptr,"UChar")=0)
+	{
+		step()
+	}
+	Else
+	{
+		while(gloopLevel!=loopLevel)
 		{
-			while(gloopLevel!=loopLevel)
+			op:=NumGet(source, --sptr,"UChar")
+			if(op=91)
 			{
-				op:=NumGet(source, ++sptr,"UChar")
-				if(op=91)
-				{
-					gloopLevel+=1
-				}
-				Else if(op=93)
-				{
-					gloopLevel-=1
-				}
-				if(sptr>0xFFFF)
-				{
-					MsgBox, sptr up overflow
-					ExitApp, -4
-				}
+				gloopLevel+=1
 			}
-		}
-		Else
-		{
-			step()
-		}
-	}
-	loopend() {
-		global
-		local loopLevel
-		; MsgBox, % A_ThisFunc
-		loopLevel:=gloopLevel
-		gloopLevel-=1
-		if(NumGet(ram, ptr,"UChar")=0)
-		{
-			step()
-		}
-		Else
-		{
-			while(gloopLevel!=loopLevel)
+			Else if(op=93)
 			{
-				op:=NumGet(source, --sptr,"UChar")
-				if(op=91)
-				{
-					gloopLevel+=1
-				}
-				Else if(op=93)
-				{
-					gloopLevel-=1
-				}
-				if(sptr<0)
-				{
-					MsgBox, sptr down overflow
-					ExitApp, -5
-				}
+				gloopLevel-=1
+			}
+			if(sptr<0)
+			{
+				MsgBox, sptr down overflow
+				ExitApp, -5
 			}
 		}
 	}
+}
 
 
-F5::ExitApp
+; F5::ExitApp
