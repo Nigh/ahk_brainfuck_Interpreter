@@ -1,4 +1,3 @@
-
 #SingleInstance Force
 SetBatchLines, -1
 
@@ -22,8 +21,8 @@ if(ErrorLevel)
 }
 
 Gui, -Owner +Caption hwndgui_id
-Gui, Add, Edit, w340 r20 readonly vediter hwndhEdit1,
-Gui, Add, Edit, w300 r1 vinput disabled hwndhInput1,
+Gui, Add, Edit, w640 r40 -Wrap Multi readonly vediter hwndhEdit1,
+Gui, Add, Edit, w600 r1 vinput disabled hwndhInput1,
 gui, Add, button, x+5 w35 gsend vbt disabled Default, \n
 gui, show,, brainfuck
 
@@ -49,12 +48,28 @@ while(!hFile.AtEOF){
 	translate(hFile.ReadUChar())
 }
 pc_reset()
+DllCall("QueryPerformanceFrequency", "Int64*", clock)
+printBuffer:=""
+SetTimer, print, 1000
+inputTimeAdj:=0
+DllCall("QueryPerformanceCounter", "Int64*", CounterBefore)
 while(1)
 {
 	if(interpret())
 	break
 }
-gui, show,, interpretation complete!!!
+DllCall("QueryPerformanceCounter", "Int64*", CounterAfter)
+SetTimer, print, -1
+gui, show,, % "complete in " (inputTimeAdj + CounterAfter - CounterBefore)/clock "s"
+Return
+
+print:
+if(printBuffer="")
+Return
+GuiControl, -Redraw, ahk_id %hEdit1%
+Control, EditPaste, % printBuffer,, ahk_id %hEdit1%
+printBuffer:=""
+GuiControl, +Redraw, ahk_id %hEdit1%
 Return
 
 send:
@@ -97,13 +112,16 @@ prev() {
 }
 print() {
 	global
-	GuiControl, -Redraw, ahk_id %hEdit1%
-	Control, EditPaste, % chr(NumGet(ram, ptr,"UChar")),, ahk_id %hEdit1%
-	GuiControl, +Redraw, ahk_id %hEdit1%
+	_:=chr(NumGet(ram, ptr,"UChar"))
+	if(_="`n")
+	_:="`r`n"
+	printBuffer.=_
 	sptr++
 }
 get() {
 	global
+	DllCall("QueryPerformanceCounter", "Int64*", CounterAfter)
+	inputTimeAdj+=CounterAfter - CounterBefore
 	GuiControl, -Disabled, input
 	GuiControl, -Disabled, bt
 	sleep 10
@@ -124,6 +142,7 @@ get() {
 			break
 		}
 	}
+	DllCall("QueryPerformanceCounter", "Int64*", CounterBefore)
 	sptr++
 }
 
