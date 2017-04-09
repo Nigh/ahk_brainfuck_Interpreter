@@ -1,6 +1,6 @@
 # ahk brainfuck Interpreter
 
-another brainfuck interpreter on Autohotkey`(1.1.22.09)`
+another brainfuck interpreter on **Autohotkey_H**`(2.0.0.0)`
 
 ## intro
 

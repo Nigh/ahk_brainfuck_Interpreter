@@ -1,22 +1,20 @@
 #SingleInstance Force
-SetBatchLines, -1
 
-if(%0%<=0){
+if(A_Args.Length()<=0){
 	Msgbox, drop file on it, Please.
 	ExitApp, -5
 }
-path=%1%
-IfNotExist, % path
+
+path:=A_Args[1]
+if !FileExist(path)
 {
 	Msgbox, drop file on it, Please.
 	ExitApp, -4
 }
-SplitPath, path, OutFileName, OutDir, OutExtension, OutNameNoExt, OutDrive
-
-hFile:=fileOpen(path,"r")
-if(ErrorLevel)
+hFile:=FileOpen(path,"r")
+if !hFile
 {
-	MsgBox, Something goes wrong while trying open the source file.
+	MsgBox, [%GetLastError()%]Something goes wrong while trying open the source file.
 	ExitApp, -3
 }
 
@@ -28,8 +26,8 @@ gui, show,, brainfuck
 
 ram:=""
 source:=""
-VarSetCapacity(ram, 0xFFFF, 0)
-VarSetCapacity(source, 0xFFFF, 0)
+VarSetCapacity, _, ram, 0xFFFF, 0
+VarSetCapacity, _, source, 0xFFFF, 0
 
 ptr:=0
 sptr:=0
@@ -133,8 +131,8 @@ get() {
 		GuiControlGet, txt1,, input
 		if(txt1!="")
 		{
-			NumPut(Asc(txt1)&0xFF,ram, ptr,"UChar")
-			Control, EditPaste, % chr(Asc(txt1)&0xFF),, ahk_id %hEdit1%
+			NumPut(Ord(txt1)&0xFF,ram, ptr,"UChar")
+			Control, EditPaste, % chr(Ord(txt1)&0xFF),, ahk_id %hEdit1%
 			GuiControl,,input,
 			GuiControl,+Disabled,input,
 			GuiControl,+Disabled, bt
@@ -161,13 +159,14 @@ interpret()
 		MsgBox, % "Program End`nPtr=" ptr "`nsPtr=" sptr
 		ExitApp, 0
 	}
-	op:=NumGet(source, sptr,"UChar")
+	op:=NumGet(source,sptr,"UChar")
 	if(op=0)
 		Return true
-	funcArr[op].()
+	funcArr[op].Call()
 	return false
 }
 
+scode:=""
 translate(byte)
 {
 	global
@@ -253,6 +252,3 @@ loopend() {
 		}
 	}
 }
-
-
-; F5::ExitApp
