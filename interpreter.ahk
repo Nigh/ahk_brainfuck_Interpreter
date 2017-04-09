@@ -1,16 +1,26 @@
 #SingleInstance Force
 
-if(A_Args.Length()<=0){
-	Msgbox, drop file on it, Please.
-	ExitApp, -5
+debug:=0
+
+if debug
+{
+	path:="F:\github\ahk_brainfuck_Interpreter\primes.bf"
+}
+Else
+{
+	if(A_Args.Length()<=0){
+		Msgbox, drop file on it, Please.
+		ExitApp, -5
+	}
+
+	path:=A_Args[1]
+	if !FileExist(path)
+	{
+		Msgbox, drop file on it, Please.
+		ExitApp, -4
+	}
 }
 
-path:=A_Args[1]
-if !FileExist(path)
-{
-	Msgbox, drop file on it, Please.
-	ExitApp, -4
-}
 hFile:=FileOpen(path,"r")
 if !hFile
 {
@@ -19,55 +29,52 @@ if !hFile
 }
 
 Gui, -Owner +Caption hwndgui_id
-Gui, Add, Edit, w640 r40 -Wrap Multi readonly vediter hwndhEdit1,
+Gui, Add, Edit, w640 r40 -Wrap Multi readonly +Disabled vediter hwndhEdit1,
 Gui, Add, Edit, w600 r1 vinput disabled hwndhInput1,
 gui, Add, button, x+5 w35 gsend vbt disabled Default, \n
 gui, show,, brainfuck
 
-ram:=""
 source:=""
-VarSetCapacity, _, ram, 0xFFFF, 0
 VarSetCapacity, _, source, 0xFFFF, 0
-
-ptr:=0
-sptr:=0
-glooplevel:=0
-funcArr:=Object()
-funcArr[43]:=Func("plus")
-funcArr[45]:=Func("minus")
-funcArr[60]:=Func("prev")
-funcArr[62]:=Func("next")
-funcArr[46]:=Func("print")
-funcArr[44]:=Func("get")
-funcArr[91]:=Func("loopstart")
-funcArr[93]:=Func("loopend")
 
 while(!hFile.AtEOF){
 	translate(hFile.ReadUChar())
 }
-pc_reset()
+
 DllCall("QueryPerformanceFrequency", "Int64*", clock)
 printBuffer:=""
+_ptr:=1
+_ram:=Object()
+loop, 32768
+_ram.Push(0)
+scode:="
+(
+; _ptr:=1
+; _ram:=Object()
+; loop, 32768
+; _ram.Push(0)
+)"
+DllCall("QueryPerformanceCounter", "Int64*", CounterBefore)
+compile2ahk()
+; Clipboard:=scode
+; msgbox(scode)
 SetTimer, print, 1000
 inputTimeAdj:=0
-DllCall("QueryPerformanceCounter", "Int64*", CounterBefore)
-while(1)
-{
-	if(interpret())
-	break
-}
+ahkExec(scode)
 DllCall("QueryPerformanceCounter", "Int64*", CounterAfter)
-SetTimer, print, -1
+SetTimer, print, Off
+Gosub, print
 gui, show,, % "complete in " (inputTimeAdj + CounterAfter - CounterBefore)/clock "s"
 Return
 
 print:
-if(printBuffer="")
+if printBuffer=""
 Return
-GuiControl, -Redraw, ahk_id %hEdit1%
+GuiControl, -Redraw -Disabled, ahk_id %hEdit1%
+printBuffer := StrReplace(printBuffer, "`n", "`r`n")
 Control, EditPaste, % printBuffer,, ahk_id %hEdit1%
 printBuffer:=""
-GuiControl, +Redraw, ahk_id %hEdit1%
+GuiControl, +Redraw +Disabled, ahk_id %hEdit1%
 Return
 
 send:
@@ -78,45 +85,7 @@ Return
 guiclose:
 ExitApp
 
-plus() {
-	global
-	NumPut((NumGet(ram, ptr,"UChar")+0x01)&0xFF,ram, ptr,"UChar")
-	sptr++
-}
-minus() {
-	global
-	NumPut((NumGet(ram, ptr,"UChar")+0xFF)&0xFF,ram, ptr,"UChar")
-	sptr++
-}
-next() {
-	global
-	ptr+=1
-	if(ptr>0xFFFF)
-	{
-		MsgBox, ptr up overflow
-		ExitApp, -2
-	}
-	sptr++
-}
-prev() {
-	global
-	ptr-=1
-	if(ptr<0)
-	{
-		MsgBox, ptr down overflow
-		ExitApp, -3
-	}
-	sptr++
-}
-print() {
-	global
-	_:=chr(NumGet(ram, ptr,"UChar"))
-	if(_="`n")
-	_:="`r`n"
-	printBuffer.=_
-	sptr++
-}
-get() {
+_get() {
 	global
 	DllCall("QueryPerformanceCounter", "Int64*", CounterAfter)
 	inputTimeAdj+=CounterAfter - CounterBefore
@@ -131,8 +100,8 @@ get() {
 		GuiControlGet, txt1,, input
 		if(txt1!="")
 		{
-			NumPut(Ord(txt1)&0xFF,ram, ptr,"UChar")
-			Control, EditPaste, % chr(Ord(txt1)&0xFF),, ahk_id %hEdit1%
+			_ram[_ptr]:=Ord(txt1)&0xFF
+			Control, EditPaste, % chr(_ram[_ptr]),, ahk_id %hEdit1%
 			GuiControl,,input,
 			GuiControl,+Disabled,input,
 			GuiControl,+Disabled, bt
@@ -141,32 +110,8 @@ get() {
 		}
 	}
 	DllCall("QueryPerformanceCounter", "Int64*", CounterBefore)
-	sptr++
 }
 
-pc_reset()
-{
-	global
-	sptr:=0
-	ptr:=0
-}
-
-interpret()
-{
-	global
-	if(sptr>0xFFFF)
-	{
-		MsgBox, % "Program End`nPtr=" ptr "`nsPtr=" sptr
-		ExitApp, 0
-	}
-	op:=NumGet(source,sptr,"UChar")
-	if(op=0)
-		Return true
-	funcArr[op].Call()
-	return false
-}
-
-scode:=""
 translate(byte)
 {
 	global
@@ -181,74 +126,78 @@ translate(byte)
 	}
 }
 
-step() {
+compile2ahk()
+{
 	global
-	sptr+=1
-	if(sptr>0xFFFF)
+	local statu:=NumGet(&source,0,"UChar")
+	local cnt:=0
+	loop
 	{
-		MsgBox, ptr up overflow
-		ExitApp, -2
-	}
-}
-
-
-loopstart() {
-	global
-	local loopLevel
-	loopLevel:=gloopLevel
-	gloopLevel+=1
-	if(NumGet(ram, ptr,"UChar")=0)
-	{
-		while(gloopLevel!=loopLevel)
+		op:=NumGet(&source,A_Index-1,"UChar")
+		if op=Ord("+") and statu=op
 		{
-			op:=NumGet(source, ++sptr,"UChar")
-			if(op=91)
-			{
-				gloopLevel+=1
-			}
-			Else if(op=93)
-			{
-				gloopLevel-=1
-			}
-			if(sptr>0xFFFF)
-			{
-				MsgBox, sptr up overflow
-				ExitApp, -4
-			}
+			cnt+=1
 		}
-	}
-	Else
-	{
-		step()
-	}
-}
-loopend() {
-	global
-	local loopLevel
-	loopLevel:=gloopLevel
-	gloopLevel-=1
-	if(NumGet(ram, ptr,"UChar")=0)
-	{
-		step()
-	}
-	Else
-	{
-		while(gloopLevel!=loopLevel)
+		else if op=Ord("-") and statu=op
 		{
-			op:=NumGet(source, --sptr,"UChar")
-			if(op=91)
+			cnt+=1
+		}
+		else if op=Ord(">") and statu=op
+		{
+			cnt+=1
+		}
+		else if op=Ord("<") and statu=op
+		{
+			cnt+=1
+		}
+		else if cnt!=0
+		{
+			; msgbox(scode "," statu "," cnt)
+			if statu=0
+				Return
+			if statu=Ord(">")
+				scode.="`r`n_ptr+=" cnt
+			else if statu=Ord("<")
+				scode.="`r`n_ptr-=" cnt
+			else if statu=Ord("+")
 			{
-				gloopLevel+=1
+				while(cnt>256)
+					cnt-=256
+				scode.="`r`n_ram[_ptr]:=(_ram[_ptr]+" cnt ")&0xFF"
 			}
-			Else if(op=93)
+			else if statu=Ord("-")
 			{
-				gloopLevel-=1
+				while(cnt>256)
+					cnt-=256
+				scode.="`r`n_ram[_ptr]:=(_ram[_ptr]+256-" cnt ")&0xFF"
 			}
-			if(sptr<0)
+			else if statu=Ord("[")
 			{
-				MsgBox, sptr down overflow
-				ExitApp, -5
+				scode.="`r`nwhile(_ram[_ptr]!=0)`r`n{"
 			}
+			else if statu=Ord("]")
+			{
+				scode.="`r`n}"
+			}
+			Else if statu=Ord(".")
+			{
+				; MsgBox(A_Index "," statu "," op)
+				scode.="`r`nprintBuffer.=Chr(_ram[_ptr])"
+			}
+			Else if statu=Ord(",")
+			{
+				scode.="`r`nGosub, print"
+				scode.="`r`n_get()"
+			}
+			statu:=op
+			cnt:=1
+			if op=0
+				Return
+		}
+		Else
+		{
+			statu:=op
+			cnt:=1
 		}
 	}
 }

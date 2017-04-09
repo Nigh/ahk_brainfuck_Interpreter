@@ -2,6 +2,8 @@
 
 another brainfuck interpreter on **Autohotkey_H**`(2.0.0.0)`
 
+>> Compiled to native ahk code, `20x` fast than L version
+
 ## intro
 
 brainfuck is an extremely minimal Turing-complete programming language with just 8 commands.
