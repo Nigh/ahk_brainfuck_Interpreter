@@ -1,4 +1,5 @@
 
+#SingleInstance Force
 SetBatchLines, -1
 
 if(%0%<=0){
@@ -96,7 +97,9 @@ prev() {
 }
 print() {
 	global
+	GuiControl, -Redraw, ahk_id %hEdit1%
 	Control, EditPaste, % chr(NumGet(ram, ptr,"UChar")),, ahk_id %hEdit1%
+	GuiControl, +Redraw, ahk_id %hEdit1%
 	sptr++
 }
 get() {
